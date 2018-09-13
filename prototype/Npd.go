@@ -5,7 +5,7 @@ import (
 	"net/http"
 	"net/http/httputil"
 	"net/url"
-	_ "npd/queue"
+	"npd/queue"
 	"os"
 	"strings"
 )
@@ -17,6 +17,8 @@ type Npd struct {
 	HTTPSServer *http.Server
 
 	BackendProxy *httputil.ReverseProxy
+
+	addToQueue chan queue.Request
 }
 
 func (w *Npd) Start() error {
@@ -55,7 +57,20 @@ func (w *Npd) Start() error {
 	return httpServer.ListenAndServe()
 }
 
+func (w *Npd) SetAddQueueChannel(channel chan queue.Request) {
+	w.addToQueue = channel
+}
+
 func (w *Npd) ServeHTTP(rw http.ResponseWriter, req *http.Request) {
+	var request = queue.Request{}
+	request.Channel = make(chan int)
+	request.Url = req.RequestURI
+	request.Score = 10
+	w.addToQueue <- request
+	log.Println("beforewait")
+	test := <-request.Channel
+	log.Println(test)
+	log.Println("afterwait")
 
 	w.BackendProxy.ServeHTTP(rw, req)
 }
