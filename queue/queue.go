@@ -1,6 +1,7 @@
 package queue
 
 import (
+	"reflect"
 	"time"
 )
 
@@ -20,13 +21,20 @@ type Queue struct {
 	requestLoad   []*RequestLoad
 }
 
-var maxRequests = 20
-var currentRequests = 0
+const maxRequests = 20
+
+var activeQueue []*Request
 
 func (q *Queue) removeQueueItemByIndex(i int) {
 
 	q.priorityQueue = q.priorityQueue[:i+copy(q.priorityQueue[i:], q.priorityQueue[i+1:])]
 }
+
+func (q *Queue) removeActiveItemByIndex(i int) {
+
+	activeQueue = activeQueue[:i+copy(activeQueue[i:], activeQueue[i+1:])]
+}
+
 func (q *Queue) removeQueueItem(request *Request) {
 
 	for i, queuedRequest := range q.priorityQueue {
@@ -36,34 +44,45 @@ func (q *Queue) removeQueueItem(request *Request) {
 	}
 }
 
-func (q *Queue) AddRequest(addRequestChannel chan *Request) {
-	for {
-		request := <-addRequestChannel
-		q.priorityQueue = append(q.priorityQueue, request)
+func (q *Queue) removeActiveItem(request *Request) {
 
+	for i, queuedRequest := range activeQueue {
+		if queuedRequest == request {
+			q.removeActiveItemByIndex(i)
+		}
 	}
 }
-func (q *Queue) RemoveRequest(removeRequestChannel chan *Request) {
+
+func (q *Queue) UpdateRequestQueue(addRequestChannel chan *Request, removeRequestChannel chan *Request) {
+	cases := make([]reflect.SelectCase, 2)
+	cases[0] = reflect.SelectCase{Dir: reflect.SelectRecv, Chan: reflect.ValueOf(addRequestChannel)}
+	cases[1] = reflect.SelectCase{Dir: reflect.SelectRecv, Chan: reflect.ValueOf(removeRequestChannel)}
 	for {
-		request := <-removeRequestChannel
-		q.removeQueueItem(request)
-		decrementCounter()
+		chosen, value, _ := reflect.Select(cases)
+		request := value.Interface().(*Request)
+		if chosen == 0 {
+			q.priorityQueue = append(q.priorityQueue, request)
+		} else if chosen == 1 {
+			q.removeActiveItem(request)
+		}
+
 	}
 }
 
 func (q *Queue) HandleQueue() {
 	for {
 		if availableSlots() > 0 {
-			q.allowRequests()
+			q.activateRequests()
 		}
 
 	}
 }
-func (q *Queue) allowRequests() {
+func (q *Queue) activateRequests() {
 	for _, request := range q.priorityQueue {
-		if availableSlots() > 0 && request.Score == 0 && request.StartTime.IsZero() {
-			incrementCounter()
+		if availableSlots() > 0 && request.Score == 0 {
 			request.StartTime = time.Now()
+			q.removeQueueItem(request)
+			activeQueue = append(activeQueue, request)
 			request.Channel <- 1
 
 		}
@@ -82,16 +101,6 @@ func (q *Queue) decrementScores() {
 }
 
 func availableSlots() int {
-	slots := maxRequests - currentRequests
+	slots := maxRequests - len(activeQueue)
 	return slots
-}
-
-func incrementCounter() int {
-	currentRequests = currentRequests + 1
-	return currentRequests
-}
-
-func decrementCounter() int {
-	currentRequests = currentRequests - 1
-	return currentRequests
 }
