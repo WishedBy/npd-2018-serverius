@@ -8,13 +8,16 @@ import (
 
 func main() {
 	q := queue.Queue{}
-	addRequestChannel := make(chan queue.Request)
+	addRequestChannel := make(chan *queue.Request)
+	removeRequestChannel := make(chan *queue.Request)
 
 	go q.AddRequest(addRequestChannel)
+	go q.RemoveRequest(removeRequestChannel)
 	go q.HandleQueue()
 
 	npd := &prototype.Npd{}
 	npd.SetAddQueueChannel(addRequestChannel)
+	npd.SetRemoveQueueChannel(removeRequestChannel)
 	log.Println("Starting server")
 
 	log.Fatal(npd.Start())

@@ -18,7 +18,8 @@ type Npd struct {
 
 	BackendProxy *httputil.ReverseProxy
 
-	addToQueue chan queue.Request
+	addToQueue      chan *queue.Request
+	removeFromQueue chan *queue.Request
 }
 
 func (w *Npd) Start() error {
@@ -57,8 +58,12 @@ func (w *Npd) Start() error {
 	return httpServer.ListenAndServe()
 }
 
-func (w *Npd) SetAddQueueChannel(channel chan queue.Request) {
+func (w *Npd) SetAddQueueChannel(channel chan *queue.Request) {
 	w.addToQueue = channel
+}
+
+func (w *Npd) SetRemoveQueueChannel(channel chan *queue.Request) {
+	w.removeFromQueue = channel
 }
 
 func (w *Npd) ServeHTTP(rw http.ResponseWriter, req *http.Request) {
@@ -66,13 +71,12 @@ func (w *Npd) ServeHTTP(rw http.ResponseWriter, req *http.Request) {
 	request.Channel = make(chan int)
 	request.Url = req.RequestURI
 	request.Score = 10
-	w.addToQueue <- request
-	log.Println("beforewait")
-	test := <-request.Channel
-	log.Println(test)
-	log.Println("afterwait")
+
+	w.addToQueue <- &request
+	_ = <-request.Channel
 
 	w.BackendProxy.ServeHTTP(rw, req)
+	w.removeFromQueue <- &request
 }
 
 //Modifies and prepares the http request for trannsemission to the backend
