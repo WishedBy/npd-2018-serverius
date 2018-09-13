@@ -3,6 +3,8 @@ package queue
 import (
 	"reflect"
 	"time"
+
+	"github.com/davecgh/go-spew/spew"
 )
 
 type Request struct {
@@ -14,7 +16,8 @@ type Request struct {
 
 type RequestLoad struct {
 	url            string
-	processingTime int
+	processingTime int64
+	count          int
 }
 type Queue struct {
 	priorityQueue []*Request
@@ -48,7 +51,9 @@ func (q *Queue) removeActiveItem(request *Request) {
 
 	for i, queuedRequest := range activeQueue {
 		if queuedRequest == request {
+			q.updateLoad(request)
 			q.removeActiveItemByIndex(i)
+			spew.Dump(q)
 		}
 	}
 }
@@ -67,6 +72,23 @@ func (q *Queue) UpdateRequestQueue(addRequestChannel chan *Request, removeReques
 		}
 
 	}
+}
+
+func (q *Queue) updateLoad(request *Request) {
+	timediff := time.Now().Sub(request.StartTime).Nanoseconds()
+	for _, requestLoad := range q.requestLoad {
+		if requestLoad.url == request.Url {
+			requestLoad.processingTime = ((requestLoad.processingTime * int64(requestLoad.count)) + timediff) / (int64(requestLoad.count + 1))
+			requestLoad.count = requestLoad.count + 1
+			return
+		}
+
+	}
+	requestLoad := RequestLoad{}
+	requestLoad.url = request.Url
+	requestLoad.processingTime = time.Now().Sub(request.StartTime).Nanoseconds()
+	requestLoad.count = 1
+	q.requestLoad = append(q.requestLoad, &requestLoad)
 }
 
 func (q *Queue) HandleQueue() {
