@@ -166,6 +166,11 @@ func (q *Queue) activateRequests() {
 	q.decrementScores()
 }
 
+func (q *Queue) decrementIpScores() {
+	for ip, count := range q.FromIpScore {
+		q.FromIpScore[ip] = count - 1
+	}
+}
 func (q *Queue) decrementScores() {
 
 	for i, request := range q.priorityQueue {
