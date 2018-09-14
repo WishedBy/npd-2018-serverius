@@ -69,6 +69,7 @@ func (q *Queue) removeActiveItem(request *Request) {
 func (q *Queue) UpdateRequestQueue(addRequestChannel chan *Request, removeRequestChannel chan *Request) {
 
 	timer := time.NewTimer(1 * time.Second)
+	decrementIpTimer := time.NewTimer(time.Millisecond * 100)
 
 	for {
 		select {
@@ -84,6 +85,9 @@ func (q *Queue) UpdateRequestQueue(addRequestChannel chan *Request, removeReques
 		case <-timer.C:
 			q.sendStats()
 			timer = time.NewTimer(1 * time.Second)
+		case <-decrementIpTimer.C:
+			q.decrementIpScores()
+			decrementIpTimer = time.NewTimer(1 * time.Millisecond)
 		default:
 		}
 
@@ -187,6 +191,9 @@ func (q *Queue) activateRequests() {
 func (q *Queue) decrementIpScores() {
 	for ip, count := range q.FromIpScore {
 		q.FromIpScore[ip] = count - 1
+		if q.FromIpScore[ip] < 0 {
+			q.FromIpScore[ip] = 0
+		}
 	}
 }
 func (q *Queue) decrementScores() {
