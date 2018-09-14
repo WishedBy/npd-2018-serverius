@@ -2,6 +2,7 @@ package prototype
 
 import (
 	"log"
+	"net"
 	"net/http"
 	"net/http/httputil"
 	"net/url"
@@ -67,10 +68,15 @@ func (w *Npd) SetRemoveQueueChannel(channel chan *queue.Request) {
 }
 
 func (w *Npd) ServeHTTP(rw http.ResponseWriter, req *http.Request) {
+
+	urlSplit := strings.Split(req.RequestURI, "?")
+	urlSplit = strings.Split(urlSplit[0], "#")
+	url := strings.Trim(urlSplit[0], "/")
+	ip, _, _ := net.SplitHostPort(req.RemoteAddr)
 	var request = queue.Request{}
 	request.Channel = make(chan int)
-	request.Url = req.RequestURI
-	request.Score = 10
+	request.Url = url
+	request.Ip = ip
 
 	w.addToQueue <- &request
 	_ = <-request.Channel
