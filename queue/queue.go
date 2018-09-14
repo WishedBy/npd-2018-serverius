@@ -1,7 +1,6 @@
 package queue
 
 import (
-	"reflect"
 	"time"
 
 	"github.com/davecgh/go-spew/spew"
@@ -68,18 +67,19 @@ func (q *Queue) removeActiveItem(request *Request) {
 }
 
 func (q *Queue) UpdateRequestQueue(addRequestChannel chan *Request, removeRequestChannel chan *Request) {
-	cases := make([]reflect.SelectCase, 2)
-	cases[0] = reflect.SelectCase{Dir: reflect.SelectRecv, Chan: reflect.ValueOf(addRequestChannel)}
-	cases[1] = reflect.SelectCase{Dir: reflect.SelectRecv, Chan: reflect.ValueOf(removeRequestChannel)}
 	for {
-		chosen, value, _ := reflect.Select(cases)
-		request := value.Interface().(*Request)
-		if chosen == 0 {
+		select {
+		//A new connection is accepted
+		case request := <-addRequestChannel:
 			q.addRequest(request)
-		} else if chosen == 1 {
+
+		//A connection is done
+		case request := <-removeRequestChannel:
 			q.removeActiveItem(request)
+		default:
 		}
 
+		q.handleQueue()
 	}
 }
 
@@ -148,17 +148,14 @@ func (q *Queue) updateFromIpScore(request *Request) {
 
 }
 
-func (q *Queue) HandleQueue() {
-	for {
-		if availableSlots() > 0 {
-			q.activateRequests()
-		}
-
+func (q *Queue) handleQueue() {
+	if availableSlots() > 0 {
+		q.activateRequests()
 	}
 }
 func (q *Queue) activateRequests() {
 	for _, request := range q.priorityQueue {
-		if availableSlots() > 0 && request.Score == 0 {
+		if request.Score == 0 {
 			request.StartTime = time.Now()
 			q.removeQueueItem(request)
 			activeQueue = append(activeQueue, request)

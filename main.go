@@ -12,7 +12,6 @@ func main() {
 	removeRequestChannel := make(chan *queue.Request)
 
 	go q.UpdateRequestQueue(addRequestChannel, removeRequestChannel)
-	go q.HandleQueue()
 
 	npd := &prototype.Npd{}
 	npd.SetAddQueueChannel(addRequestChannel)
