@@ -67,6 +67,9 @@ func (q *Queue) removeActiveItem(request *Request) {
 }
 
 func (q *Queue) UpdateRequestQueue(addRequestChannel chan *Request, removeRequestChannel chan *Request) {
+
+	timer := time.NewTimer(1 * time.Second)
+
 	for {
 		select {
 		//A new connection is accepted
@@ -76,11 +79,27 @@ func (q *Queue) UpdateRequestQueue(addRequestChannel chan *Request, removeReques
 		//A connection is done
 		case request := <-removeRequestChannel:
 			q.removeActiveItem(request)
+
+		//The stats timer has ran out
+		case <-timer.C:
+			q.sendStats()
+			timer = time.NewTimer(1 * time.Second)
 		default:
 		}
 
-		q.handleQueue()
+		q.activateRequests()
 	}
+}
+
+func (q *Queue) sendStats() {
+	/*type stat struct {
+		ipaddress         string `json:"ip_addres"`
+		timeSpentInQueue  int64
+		requestsPerSecond int64
+	}
+
+	stats := make([]stat, 0, len(q.priorityQueue))
+	//	q.priorityQueue*/
 }
 
 func (q *Queue) addRequest(request *Request) {
@@ -148,19 +167,18 @@ func (q *Queue) updateFromIpScore(request *Request) {
 
 }
 
-func (q *Queue) handleQueue() {
-	if availableSlots() > 0 {
-		q.activateRequests()
-	}
-}
 func (q *Queue) activateRequests() {
-	for _, request := range q.priorityQueue {
-		if request.Score == 0 {
-			request.StartTime = time.Now()
-			q.removeQueueItem(request)
-			activeQueue = append(activeQueue, request)
-			request.Channel <- 1
+	if availableSlots() > 0 {
+		for _, request := range q.priorityQueue {
+			if request.Score == 0 {
 
+				request.StartTime = time.Now()
+				q.removeQueueItem(request)
+
+				activeQueue = append(activeQueue, request)
+				request.Channel <- 1
+
+			}
 		}
 	}
 	q.decrementScores()
